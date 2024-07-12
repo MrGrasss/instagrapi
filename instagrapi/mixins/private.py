@@ -34,6 +34,7 @@ from instagrapi.exceptions import (
     UnknownError,
     UserNotFound,
     VideoTooLongException,
+    SkipChallenge
 )
 from instagrapi.utils import dumps, generate_signature, random_delay
 
@@ -324,7 +325,7 @@ class PrivateRequestMixin:
             if endpoint == "/challenge/":  # wow so hard, is it safe tho?
                 endpoint = "/v1/challenge/"
 
-            api_url = f"https://{domain or config.API_DOMAIN}/api{endpoint}"
+            api_url = f"https://{self.domain or config.API_DOMAIN}/api{endpoint}"
             self.logger.info(api_url)
             if data:  # POST
                 # Client.direct_answer raw dict
@@ -503,7 +504,9 @@ class PrivateRequestMixin:
         with_signature=True,
         headers=None,
         extra_sig=None,
-        domain: str = None,
+        skip_challenge=False,
+        domain: str = None
+
     ):
         if self.authorization:
             if not headers:
@@ -535,6 +538,8 @@ class PrivateRequestMixin:
         except Exception as e:
             if self.handle_exception:
                 self.handle_exception(self, e)
+            elif isinstance(e, ChallengeRequired) and skip_challenge:
+                raise SkipChallenge("Skipping challenge due to skip_challenge being False")
             elif isinstance(e, ChallengeRequired):
                 self.challenge_resolve(self.last_json)
             else:

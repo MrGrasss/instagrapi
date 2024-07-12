@@ -19,6 +19,11 @@ class ClientError(Exception):
             self.code = self.response.status_code
 
 
+class SkipChallenge(ClientError):
+    """Custom exception to skip challenges during login"""
+    pass
+
+
 class ClientUnknownError(ClientError):
     pass
 
