@@ -377,6 +377,7 @@ class LoginMixin(PreLoginFlowMixin, PostLoginFlowMixin):
         password: Union[str, None] = None,
         relogin: bool = False,
         verification_code: str = "",
+        skip_challenge: bool = False,
     ) -> bool:
         """
         Login
@@ -438,7 +439,7 @@ class LoginMixin(PreLoginFlowMixin, PostLoginFlowMixin):
             "login_attempt_count": "0",
         }
         try:
-            logged = self.private_request("accounts/login/", data, login=True)
+            logged = self.private_request("accounts/login/", data, login=True, skip_challenge=skip_challenge)
             self.authorization_data = self.parse_authorization(
                 self.last_response.headers.get("ig-set-authorization")
             )
@@ -463,7 +464,7 @@ class LoginMixin(PreLoginFlowMixin, PostLoginFlowMixin):
                 "verification_method": "3",
             }
             logged = self.private_request(
-                "accounts/two_factor_login/", data, login=True
+                "accounts/two_factor_login/", data, login=True, skip_challenge=skip_challenge
             )
             self.authorization_data = self.parse_authorization(
                 self.last_response.headers.get("ig-set-authorization")
