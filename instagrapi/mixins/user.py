@@ -8,6 +8,7 @@ from instagrapi.exceptions import (
     ClientLoginRequired,
     ClientNotFoundError,
     UserNotFound,
+    ChallengeRequired
 )
 from instagrapi.extractors import extract_user_gql, extract_user_short, extract_user_v1
 from instagrapi.types import Relationship, RelationshipShort, User, UserShort
@@ -590,7 +591,7 @@ class UserMixin:
         return users
 
     def user_following(
-        self, user_id: str, use_cache: bool = True, amount: int = 0
+            self, user_id: str, use_cache: bool = True, amount: int = 0
     ) -> Dict[str, UserShort]:
         """
         Get user's following information
@@ -628,7 +629,7 @@ class UserMixin:
         return following
 
     def user_followers_gql_chunk(
-        self, user_id: str, max_amount: int = 0, end_cursor: str = None
+            self, user_id: str, max_amount: int = 0, end_cursor: str = None
     ) -> Tuple[List[UserShort], str]:
         """
         Get user's followers information by Public Graphql API and end_cursor
@@ -699,7 +700,7 @@ class UserMixin:
         return users
 
     def user_followers_v1_chunk(
-        self, user_id: str, max_amount: int = 0, max_id: str = ""
+            self, user_id: str, max_amount: int = 0, max_id: str = ""
     ) -> Tuple[List[UserShort], str]:
         """
         Get user's followers information by Private Mobile API and max_id (cursor)
@@ -720,28 +721,36 @@ class UserMixin:
         """
         unique_set = set()
         users = []
+
         while True:
-            result = self.private_request(
-                f"friendships/{user_id}/followers/",
-                params={
-                    "max_id": max_id,
-                    "count": max_amount or MAX_USER_COUNT,
-                    "rank_token": self.rank_token,
-                    "search_surface": "follow_list_page",
-                    "query": "",
-                    "enable_groups": "true",
-                },
-            )
-            for user in result["users"]:
-                user = extract_user_short(user)
-                if user.pk in unique_set:
-                    continue
-                unique_set.add(user.pk)
-                users.append(user)
-            max_id = result.get("next_max_id")
-            if not max_id or (max_amount and len(users) >= max_amount):
-                break
-        return users, max_id
+            try:
+                result = self.private_request(
+                    f"friendships/{user_id}/followers/",
+                    params={
+                        "max_id": max_id,
+                        "count": max_amount or MAX_USER_COUNT,
+                        "rank_token": self.rank_token,
+                        "search_surface": "follow_list_page",
+                        "query": "",
+                        "enable_groups": "true",
+                    },
+                )
+                for user in result["users"]:
+                    user = extract_user_short(user)
+                    if user.pk in unique_set:
+                        continue
+                    unique_set.add(user.pk)
+                    user = self.user_info(user.pk)
+                    users.append(user)
+                max_id = result.get("next_max_id")
+                if not max_id or (max_amount and len(users) >= max_amount):
+                    break
+            except ChallengeRequired:
+                return users, max_id, "flagged"
+            except Exception as e:
+                return users, max_id, str(e)
+
+        return users, max_id, None
 
     def user_followers_v1(self, user_id: str, amount: int = 0) -> List[UserShort]:
         """
@@ -765,7 +774,7 @@ class UserMixin:
         return users
 
     def user_followers(
-        self, user_id: str, use_cache: bool = True, amount: int = 0
+            self, user_id: str, use_cache: bool = True, amount: int = 0
     ) -> Dict[str, UserShort]:
         """
         Get user's followers
@@ -1223,7 +1232,7 @@ class UserMixin:
         return json_value(result, "friendship_statuses", user_id, "is_bestie") is False
 
     def creator_info(
-        self, user_id: str, entry_point: str = "direct_thread"
+            self, user_id: str, entry_point: str = "direct_thread"
     ) -> Tuple[UserShort, Dict]:
         """
         Retrieves Creator's information

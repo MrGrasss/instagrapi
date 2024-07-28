@@ -101,6 +101,7 @@ class PublicRequestMixin:
                 ClientLoginRequired,
                 ClientNotFoundError,
                 ClientBadRequestError,
+                ClientUnauthorizedError
             ) as e:
                 raise e  # Stop retries
             # except JSONDecodeError as e:
