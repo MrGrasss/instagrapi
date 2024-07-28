@@ -34,12 +34,11 @@ from instagrapi.exceptions import (
     UnknownError,
     UserNotFound,
     VideoTooLongException,
-    SkipChallenge
 )
 from instagrapi.utils import dumps, generate_signature, random_delay
 
 
-def manual_input_code(self, username: str, choice=None):
+def manual_input_code(self, username: str, choice=None, gen=False):
     """
     Manual security code helper
 
@@ -307,7 +306,7 @@ class PrivateRequestMixin:
         with_signature=True,
         headers=None,
         extra_sig=None,
-        domain: str = None,
+        domain: str = None
     ):
         self.last_response = None
         self.last_json = last_json = {}  # for Sentry context in traceback
@@ -458,7 +457,6 @@ class PrivateRequestMixin:
                 self.logger.warning("Status 429: Too many requests")
                 raise ClientThrottledError(e, response=e.response, **last_json)
             elif e.response.status_code == 404:
-                self.logger.warning("Status 404: Endpoint %s does not exist", endpoint)
                 raise ClientNotFoundError(e, response=e.response, **last_json)
             elif e.response.status_code == 408:
                 self.logger.warning("Status 408: Request Timeout")
@@ -504,9 +502,8 @@ class PrivateRequestMixin:
         with_signature=True,
         headers=None,
         extra_sig=None,
-        skip_challenge=False,
-        domain: str = None
-
+        domain: str = None,
+        mail_api: dict = None
     ):
         if self.authorization:
             if not headers:
@@ -520,7 +517,7 @@ class PrivateRequestMixin:
             with_signature=with_signature,
             headers=headers,
             extra_sig=extra_sig,
-            domain=domain,
+            domain=domain
         )
         try:
             if self.delay_range:
@@ -538,10 +535,8 @@ class PrivateRequestMixin:
         except Exception as e:
             if self.handle_exception:
                 self.handle_exception(self, e)
-            elif isinstance(e, ChallengeRequired) and skip_challenge:
-                raise SkipChallenge("Skipping challenge due to skip_challenge being False")
             elif isinstance(e, ChallengeRequired):
-                self.challenge_resolve(self.last_json)
+                self.challenge_resolve(self.last_json, mail_api=mail_api)
             else:
                 raise e
             if login and self.user_id:

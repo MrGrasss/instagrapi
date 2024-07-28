@@ -42,7 +42,7 @@ class ChallengeResolveMixin:
     Helpers for resolving login challenge
     """
 
-    def challenge_resolve(self, last_json: Dict) -> bool:
+    def challenge_resolve(self, last_json: Dict, mail_api: dict = None) -> bool:
         """
         Start challenge resolve
 
@@ -78,7 +78,7 @@ class ChallengeResolveMixin:
         except ChallengeRequired:
             assert self.last_json["message"] == "challenge_required", self.last_json
             return self.challenge_resolve_contact_form(challenge_url)
-        return self.challenge_resolve_simple(challenge_url)
+        return self.challenge_resolve_simple(challenge_url, mail_api)
 
     def challenge_resolve_contact_form(self, challenge_url: str) -> bool:
         """
@@ -118,8 +118,8 @@ class ChallengeResolveMixin:
         session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Linux; Android 8.0.0; MI 5s Build/OPR1.170623.032; wv) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/80.0.3987.149 "
-                "Mobile Safari/537.36 %s" % self.user_agent,
+                              "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/80.0.3987.149 "
+                              "Mobile Safari/537.36 %s" % self.user_agent,
                 "upgrade-insecure-requests": "1",
                 "sec-fetch-dest": "document",
                 "accept": (
@@ -202,8 +202,8 @@ class ChallengeResolveMixin:
             result = session.post(challenge_url, {"security_code": code}).json()
             result = result.get("challenge", result)
             if (
-                "Please check the code we sent you and try again"
-                not in (result.get("errors") or [""])[0]
+                    "Please check the code we sent you and try again"
+                    not in (result.get("errors") or [""])[0]
             ):
                 break
         # FORM TO APPROVE CONTACT DATA
@@ -221,7 +221,7 @@ class ChallengeResolveMixin:
         # CHECK ACCOUNT DATA
         for detail in [self.username, self.email, self.phone_number]:
             assert (
-                not detail or detail in details
+                    not detail or detail in details
             ), 'ChallengeResolve: Data invalid: "%s" not in %s' % (detail, details)
         time.sleep(WAIT_SECONDS)
         result = session.post(
@@ -352,7 +352,7 @@ class ChallengeResolveMixin:
             raise ChallengeRedirection()
         return challenge
 
-    def challenge_resolve_simple(self, challenge_url: str) -> bool:
+    def challenge_resolve_simple(self, challenge_url: str, mail_api: dict = None) -> bool:
         """
         Old type (through private api) challenge resolver
         Помогите нам удостовериться, что вы владеете этим аккаунтом
@@ -416,14 +416,43 @@ class ChallengeResolveMixin:
                         f"(sms) not available to this account {self.last_json}"
                     )
             wait_seconds = 5
-            for attempt in range(24):
-                code = self.challenge_code_handler(self.username, ChallengeChoice.EMAIL)
-                if code:
-                    break
-                time.sleep(wait_seconds)
-            print(
-                f'Code entered "{code}" for {self.username} ({attempt} attempts by {wait_seconds} seconds)'
-            )
+
+            if mail_api:
+                if not hasattr(mail_api, 'mail_api'):
+                    code = None
+                    while True:
+                        time.sleep(1)
+                        mails = mail_api.get_emails(mail_api.mail_token)
+                        if not mails:
+                            continue
+
+                        for mail in mails:
+                            if mail == mail_api.previous_email:
+                                continue
+
+                            if 'Someone tried to log in to your Instagram account.' in mail['intro']:
+                                full_mail = mail_api.get_full_message(mail['id'])
+                                code = full_mail['text'].split('identity:')[1].split('If')[0].strip()
+                                if code:
+                                    break
+
+                            continue
+
+                        if code:
+                            break
+                else:
+                    code = mail_api.get_mail_code()
+                    if not code:
+                        mail_api.cancel_email()
+                        return
+            else:
+                for attempt in range(24):
+                    code = self.challenge_code_handler(self.username, ChallengeChoice.EMAIL)
+                    if code:
+                        break
+                    time.sleep(wait_seconds)
+                print(f'Code entered "{code}" for {self.username} ({attempt} attempts by {wait_seconds} seconds)')
+
             self._send_private_request(challenge_url, {"security_code": code})
             # assert 'logged_in_user' in client.last_json
             assert self.last_json.get("action", "") == "close"
@@ -510,7 +539,7 @@ class ChallengeResolveMixin:
 
             # last form to verify account details
             assert (
-                self.last_json["step_name"] == "review_contact_point_change"
+                    self.last_json["step_name"] == "review_contact_point_change"
             ), f"Unexpected step_name {self.last_json['step_name']}"
 
             # details = self.last_json["step_data"]
