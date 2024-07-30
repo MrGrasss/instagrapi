@@ -525,7 +525,7 @@ class UserMixin:
         return users
 
     def user_following_v1_chunk(
-        self, user_id: str, max_amount: int = 0, max_id: str = ""
+            self, user_id: str, max_amount: int = 0, max_id: str = ""
     ) -> Tuple[List[UserShort], str]:
         """
         Get user's following users information by Private Mobile API and max_id (cursor)
@@ -735,14 +735,19 @@ class UserMixin:
                         "enable_groups": "true",
                     },
                 )
-                for user in result["users"]:
+                max_id = result.get("next_max_id")
+                for i, user in enumerate(result["users"]):
                     user = extract_user_short(user)
                     if user.pk in unique_set:
                         continue
                     unique_set.add(user.pk)
+                    if i > max_amount:
+                        if not result['big_list']:
+                            return users, max_id, 'hidden'
+                        break
                     user = self.user_info(user.pk)
                     users.append(user)
-                max_id = result.get("next_max_id")
+
                 if not max_id or (max_amount and len(users) >= max_amount):
                     break
             except ChallengeRequired:
