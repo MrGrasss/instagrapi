@@ -464,7 +464,7 @@ class LoginMixin(PreLoginFlowMixin, PostLoginFlowMixin):
                 "verification_method": "3",
             }
             logged = self.private_request(
-                "accounts/two_factor_login/", data, login=True, skip_challenge=skip_challenge
+                "accounts/two_factor_login/", data, login=True
             )
             self.authorization_data = self.parse_authorization(
                 self.last_response.headers.get("ig-set-authorization")
